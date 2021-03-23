@@ -1,0 +1,16 @@
+why typescript 
+    better to catch errors than have things fail at run time
+    great form of documentation (readibility)
+
+declaring a type:
+    var foo: number = '123' // Error: cannot assign a string to a number
+
+
+
+
+
+Question for sam
+why does this work? 
+    function iTakePoint2d(point: Point2D) {do something}
+    iTakePoint2D({x:0 y:0 z:10}) ???
+
