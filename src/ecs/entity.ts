@@ -17,5 +17,9 @@ export abstract class Entity {
     // need to be able to get specific component
     public getComponent(component: Component): Component {
         // search for component in array
+        // not sure how to do this search efficiently TODO
+        // let i = length(this._components)
+        // for (i = 0; )
+        // return 
     }
 }
