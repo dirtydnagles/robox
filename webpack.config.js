@@ -1,21 +1,25 @@
-const path = require('path');
+const path = require("path");
 
 module.exports = {
-  entry: './src/Renderer.ts',
+  mode: "development",
+  entry: {
+    robox: "./src/Renderer.js",
+  },
+  devtool: "inline-source-map",
   module: {
     rules: [
       {
         test: /\.tsx?$/,
-        use: 'ts-loader',
+        loader: "ts-loader",
         exclude: /node_modules/,
       },
     ],
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: [".tsx", ".ts", ".js"],
   },
   output: {
-    filename: 'bundle.js',
-    path: path.resolve(__dirname, 'dist'),
+    filename: "[name].js",
+    path: path.resolve(__dirname, "dist"),
   },
 };
