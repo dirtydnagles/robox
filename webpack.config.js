@@ -3,7 +3,7 @@ const path = require("path");
 module.exports = {
   mode: "development",
   entry: {
-    robox: "./src/Renderer.js",
+    robox: "./src/Game.ts",
   },
   devtool: "inline-source-map",
   module: {
