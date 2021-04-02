@@ -1,108 +1,41 @@
-import { initShaderProgram, initSquareBuffers, loadTexture, drawScene } from "./Render";
+import { initShaderProgram, initSquareBuffers, loadTexture, drawScene, initWebGL } from "./Render";
 import type { ProgramInfo, BufferInfo } from "./Render";
 import { Sprite } from "./Sprite";
 
-const vs_source = `
-    attribute vec4 aVertexPosition;
-    attribute vec4 aVertexColor;
-    attribute vec2 aTextureCoord;
-    
-    uniform mat4 uModelViewMatrix;
-    uniform mat4 uProjectionMatrix;
-    
-    varying lowp vec4 vColor;
-    
-    varying highp vec2 vTextureCoord;
-    
-    void main() {
-        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
-        vColor = aVertexColor;
-        vTextureCoord = aTextureCoord;
-    }
-`;
-
-const fs_source = `
-    varying lowp vec4 vColor;
-    varying highp vec2 vTextureCoord;
-    
-    uniform sampler2D uSampler;
-    
-    void main() {
-        gl_FragColor = texture2D(uSampler, vTextureCoord) * vColor;
-    }
-`;
-
 function main() {
-    const mcanvas: HTMLCanvasElement | null = document.querySelector("#gameCanvas");
-    if (mcanvas === null) {
-        alert("Failed to select canvas.");
+    let mprogram_info = initWebGL();
+    if (mprogram_info === null) {
+        alert("Failed to initialize WebGL.");
         return;
     }
-    const canvas = mcanvas;
-    const mgl: WebGLRenderingContext | null = canvas.getContext("webgl");
-    if (mgl === null) {
-        alert("Failed to initialize WebGL");
-        return;
-    }
-    const gl = mgl;
-    
-    function fitCanvasToScreen() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
-    }
-    fitCanvasToScreen();
-    window.onresize = fitCanvasToScreen;
-    
-    if (gl === null) {
-        alert("Could not initialize WebGL.");
-        return;
-    }
-    
-    const shader_program = initShaderProgram(gl, vs_source, fs_source);
-    if (shader_program === null) {
-        alert("Failed to initialize shader program.");
-        return;
-    }
-
-    let projection_matrix = gl.getUniformLocation(shader_program, "uProjectionMatrix");
-    let model_view_matrix = gl.getUniformLocation(shader_program, "uModelViewMatrix");
-    let sampler = gl.getUniformLocation(shader_program, "uSampler");
-    if (projection_matrix === null || model_view_matrix === null || sampler === null) {
-        alert("Failed to get uniform locations.");
-        return;
-    }
-
-    const program_info: ProgramInfo = {
-        program: shader_program,
-        attribute_locations: {
-            vertex_position: gl.getAttribLocation(shader_program, "aVertexPosition"),
-            vertex_color: gl.getAttribLocation(shader_program, "aVertexColor"),
-            texture_coord: gl.getAttribLocation(shader_program, "aTextureCoord"),
-        },
-        uniform_locations: {
-            projection_matrix,
-            model_view_matrix,
-            sampler,
-        },
-    };
-    
-    const msquare_buffers = initSquareBuffers(gl);
+    let program_info = mprogram_info;
+    const msquare_buffers = initSquareBuffers(program_info.gl);
     if (msquare_buffers === null) {
         alert("Failed to initialize square buffers.");
         return;
     }
     const square_buffers = msquare_buffers;
-    const mtexture = loadTexture(gl, "res/test.png");
+    const mtexture = loadTexture(program_info.gl, "res/test.png");
     if (mtexture === null) {
         alert("Failed to load textures.");
         return;
     }
     const texture = mtexture;
 
-    let s1 = new Sprite(texture, 32, 32, square_buffers, 100.5, 0.5);
-    let s2 = new Sprite(texture, 32, 32, square_buffers, 0.25, 0.25);
-    let sprites = [s1, s2];
+    let sprites: Sprite[] = [];
+    const N = 10;
+    for (let i = 0; i < N; i++) {
+        let p = i / N;
+        let theta = p * 2 * Math.PI;
+        let dist = 100;
+        let x = program_info.gl.drawingBufferWidth / 2 + dist * Math.cos(theta);
+        let y = program_info.gl.drawingBufferHeight / 2 + dist * Math.sin(theta);
+        let r = 1;
+        let g = 1;
+        let b = 1;
+        let a = 1;
+        sprites[i] = new Sprite(texture, 32, 32, square_buffers, x, y, theta, [r, g, b, a]);
+    }
 
     let then = -1;
     function step(now: DOMHighResTimeStamp) {
@@ -110,20 +43,46 @@ function main() {
             then = now;
         }
         const delta = now - then;
-        update(sprites, delta);
-        render(gl, program_info, sprites, delta);
+        update(program_info, sprites, delta);
+        render(program_info, sprites, delta);
         requestAnimationFrame(step);
     } 
 
     requestAnimationFrame(step);
 }
 
-function update(sprites: Sprite[], delta: number) {
-
+function update(program_info: ProgramInfo, sprites: Sprite[], delta: number) {
+    let t = Date.now() / 1000;
+    for (let i = 0; i < sprites.length; i++) {
+        let sprite = sprites[i];
+        let p = i / sprites.length;
+        let theta = p * 2 * Math.PI;
+        let dist = 50 + (1 + Math.cos(t)) / 2 * 150;
+        sprite.x = program_info.gl.drawingBufferWidth / 2 + dist * Math.cos(theta + t);
+        sprite.y = program_info.gl.drawingBufferHeight / 2 + dist * Math.sin(theta + t);
+        switch (i % 3) {
+            case 0:
+                let r = (1 + Math.cos(t)) / 2;
+                sprite.width = 16 + r * 32;
+                sprite.colors = [r, 0, 0, 1];
+                break;
+            case 1:
+                let g = (1 + Math.cos(t * 0.89)) / 2;
+                sprite.width = 16 + g * 32;
+                sprite.colors = [0, g, 0, 1];
+                break;
+            case 2:
+                let b = (1 + Math.cos(t * 1.12)) / 2;
+                sprite.width = 16 + b * 32;
+                sprite.colors = [0, 0, b, 1];
+                break;
+        }
+        sprite.height = sprite.width;
+    }
 }
 
-function render(gl: WebGLRenderingContext, program_info: ProgramInfo, sprites: Sprite[], delta: number) {
-    drawScene(gl, program_info, sprites, delta);
+function render(program_info: ProgramInfo, sprites: Sprite[], delta: number) {
+    drawScene(program_info, sprites, delta);
 }
 
 window.onload = main;

@@ -2,6 +2,7 @@ import { Sprite } from "./Sprite";
 import { mat4 } from "gl-matrix";
 
 type ProgramInfo = {
+    gl: WebGLRenderingContext,
     program: WebGLProgram,
     attribute_locations: {
         vertex_position: number,
@@ -12,6 +13,7 @@ type ProgramInfo = {
         projection_matrix: WebGLUniformLocation,
         model_view_matrix: WebGLUniformLocation,
         sampler: WebGLUniformLocation,
+        tints: WebGLUniformLocation,
     },
 };
 
@@ -21,6 +23,37 @@ type BufferInfo = {
     color: WebGLBuffer,
     index: WebGLBuffer,
 };
+
+const vs_source = `
+    attribute vec4 aVertexPosition;
+    attribute vec4 aVertexColor;
+    attribute vec2 aTextureCoord;
+    
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uProjectionMatrix;
+    
+    varying lowp vec4 vColor;
+    uniform lowp vec4 uTints;
+    
+    varying highp vec2 vTextureCoord;
+    
+    void main() {
+        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        vColor = aVertexColor * uTints;
+        vTextureCoord = aTextureCoord;
+    }
+`;
+
+const fs_source = `
+    varying lowp vec4 vColor;
+    varying highp vec2 vTextureCoord;
+    
+    uniform sampler2D uSampler;
+    
+    void main() {
+        gl_FragColor = texture2D(uSampler, vTextureCoord) * vColor;
+    }
+`;
 
 function initShaderProgram(gl: WebGLRenderingContext, vs_source: string, fs_source: string) {
     const shader_program = gl.createProgram();
@@ -96,7 +129,6 @@ function loadTexture(gl: WebGLRenderingContext, url: string) {
     // Use the requested texture if it gets loaded.
     const image = new Image();
     image.onload = function() {
-        alert("Loaded image!");
         gl.bindTexture(gl.TEXTURE_2D, texture);
         gl.texImage2D(
             gl.TEXTURE_2D,
@@ -171,97 +203,13 @@ function initSquareBuffers(gl: WebGLRenderingContext): BufferInfo | null {
     };
 }
 
-let x = 0;
-function renderSquare(gl: WebGLRenderingContext, program_info: ProgramInfo, buffers: BufferInfo, texture: WebGLTexture, delta_time: number) {
-    // -- Configure model_view_matrix and apply uniform to shaders.
-    const model_view_matrix = mat4.create();
-    mat4.translate(model_view_matrix, model_view_matrix, [0.0 + x, 0.0, -1]);
-    mat4.scale(model_view_matrix, model_view_matrix, [32, 32, 0]);
-    x += 0.1;
-    console.log(x);
-    
-    gl.uniformMatrix4fv(
-        program_info.uniform_locations.model_view_matrix,
-        false,
-        model_view_matrix
-    );
-    
-    // -- Upload vertex position data
-    {
-        const count = 3;
-        const type = gl.FLOAT;
-        const normalize = false;
-        const stride = 0;
-        const offset = 0;
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.vertex);
-        gl.vertexAttribPointer(
-            program_info.attribute_locations.vertex_position,
-            count,
-            type,
-            normalize,
-            stride,
-            offset
-        );
-        gl.enableVertexAttribArray(program_info.attribute_locations.vertex_position);
-    }
-    
-    // -- Upload color data
-    {
-        const count = 4;
-        const type = gl.FLOAT;
-        const normalize = false;
-        const stride = 0;
-        const offset = 0;
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.color);
-        gl.vertexAttribPointer(
-            program_info.attribute_locations.vertex_color,
-            count,
-            type,
-            normalize,
-            stride,
-            offset
-        );
-        gl.enableVertexAttribArray(program_info.attribute_locations.vertex_color);
-    }
-    
-    // -- Upload texture coordinate data
-    {
-        const count = 2;
-        const type = gl.FLOAT;
-        const normalize = false;
-        const stride = 0;
-        const offset = 0;
-        gl.bindBuffer(gl.ARRAY_BUFFER, buffers.texture_coord);
-        gl.vertexAttribPointer(
-            program_info.attribute_locations.texture_coord,
-            count,
-            type,
-            normalize,
-            stride,
-            offset
-        );
-        gl.enableVertexAttribArray(program_info.attribute_locations.texture_coord);
-    }
-    
-    // -- Bind active texture.
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.uniform1i(program_info.uniform_locations.sampler, 0);
-    
-    // -- Draw using given indices.
-    {
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.index);
-        const count = 4;
-        const type = gl.UNSIGNED_SHORT;
-        const offset = 0;
-        gl.drawElements(gl.TRIANGLE_STRIP, count, type, offset);
-    }
-}
-
-function renderSprite(gl: WebGLRenderingContext, program_info: ProgramInfo, sprite: Sprite, delta_time: number) {
+function renderSprite(program_info: ProgramInfo, sprite: Sprite, delta_time: number) {
+    let gl = program_info.gl;
     // -- Configure model_view_matrix and apply uniform to shaders.
     const model_view_matrix = mat4.create();
     mat4.translate(model_view_matrix, model_view_matrix, [sprite.x, sprite.y, -1]);
+    mat4.rotate(model_view_matrix, model_view_matrix, sprite.rotation, [0, 0, 1]);
+    mat4.translate(model_view_matrix, model_view_matrix, [-sprite.width / 2, -sprite.height / 2, 0]);
     mat4.scale(model_view_matrix, model_view_matrix, [sprite.width, sprite.height, 0]);
 
     gl.uniformMatrix4fv(
@@ -332,6 +280,10 @@ function renderSprite(gl: WebGLRenderingContext, program_info: ProgramInfo, spri
     gl.bindTexture(gl.TEXTURE_2D, sprite.texture);
     gl.uniform1i(program_info.uniform_locations.sampler, 0);
 
+    // -- Adjust tints
+    let cs = sprite.colors;
+    gl.uniform4f(program_info.uniform_locations.tints, cs[0], cs[1], cs[2], cs[3]);
+
     // -- Draw using given indices.
     {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sprite.buffers.index);
@@ -342,7 +294,8 @@ function renderSprite(gl: WebGLRenderingContext, program_info: ProgramInfo, spri
     }
 }
 
-function drawScene(gl: WebGLRenderingContext, program_info: ProgramInfo, sprites: Sprite[], delta_time: number) {
+function drawScene(program_info: ProgramInfo, sprites: Sprite[], delta_time: number) {
+    let gl = program_info.gl;
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
@@ -368,9 +321,70 @@ function drawScene(gl: WebGLRenderingContext, program_info: ProgramInfo, sprites
     );
     
     for (let i in sprites) {
-        renderSprite(gl, program_info, sprites[i], delta_time);
+        renderSprite(program_info, sprites[i], delta_time);
     }
 }
 
-export { initShaderProgram, initSquareBuffers, loadTexture, drawScene };
+function initWebGL(): ProgramInfo | null {
+    const mcanvas: HTMLCanvasElement | null = document.querySelector("#gameCanvas");
+    if (mcanvas === null) {
+        alert("Failed to select canvas.");
+        return null;
+    }
+    const canvas = mcanvas;
+    const mgl: WebGLRenderingContext | null = canvas.getContext("webgl");
+    if (mgl === null) {
+        alert("Failed to initialize WebGL");
+        return null;
+    }
+    const gl = mgl;
+    
+    function fitCanvasToScreen() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+    }
+    fitCanvasToScreen();
+    window.onresize = fitCanvasToScreen;
+    
+    if (gl === null) {
+        alert("Could not initialize WebGL.");
+        return null;
+    }
+    
+    const shader_program = initShaderProgram(gl, vs_source, fs_source);
+    if (shader_program === null) {
+        alert("Failed to initialize shader program.");
+        return null;
+    }
+
+    let projection_matrix = gl.getUniformLocation(shader_program, "uProjectionMatrix");
+    let model_view_matrix = gl.getUniformLocation(shader_program, "uModelViewMatrix");
+    let sampler = gl.getUniformLocation(shader_program, "uSampler");
+    let tints = gl.getUniformLocation(shader_program, "uTints");
+    if (projection_matrix === null || model_view_matrix === null || sampler === null || tints === null) {
+        alert("Failed to get uniform locations.");
+        return null;
+    }
+
+    const program_info: ProgramInfo = {
+        gl,
+        program: shader_program,
+        attribute_locations: {
+            vertex_position: gl.getAttribLocation(shader_program, "aVertexPosition"),
+            vertex_color: gl.getAttribLocation(shader_program, "aVertexColor"),
+            texture_coord: gl.getAttribLocation(shader_program, "aTextureCoord"),
+        },
+        uniform_locations: {
+            projection_matrix,
+            model_view_matrix,
+            sampler,
+            tints,
+        },
+    };
+
+    return program_info;
+}
+
+export { initShaderProgram, initSquareBuffers, loadTexture, drawScene, initWebGL };
 export type { ProgramInfo, BufferInfo };
