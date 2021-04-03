@@ -1,3 +1,4 @@
+import { ProgramInfo } from "./Render";
 import { Sprite } from "./Sprite" 
 
 export class Entity {
@@ -15,11 +16,11 @@ export class Entity {
         
     }
 
-    // render(){
-    //     this.sprite.render(this.pos);
-    // }
+    render(program_info: ProgramInfo) {
+        this.sprite.render(program_info, this.pos.x, this.pos.y);
+    }
 
-    onCollision(){
+    onCollision() {
 
     }
 

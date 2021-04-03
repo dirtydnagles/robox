@@ -1,21 +1,30 @@
 import { ProgramInfo, preRender } from "./Render";
+import { Entity } from "./Entity";
 
 class Level {
-    entities: any[] = [];
+    entities: Entity[] = [];
 
     // constructor() {}
+
+    spawn(entity: Entity, x: number, y: number) {
+        entity.pos = {x, y};
+        this.entities.push(entity);
+    }
     
     update(delta: number) {
         for (let entity of this.entities) {
-            entity.update(delta);
+            // entity.update(delta);
+            entity.update();
         }
 
         for (let entity of this.entities) {
             for (let other of this.entities) {
-                if (entity === other || !entity.isColliding(other)) {
+                // if (entity === other || !entity.isColliding(other)) {
+                if (entity === other) {
                     continue;
                 }
-                entity.onCollision(other);
+                // entity.onCollision(other);
+                entity.onCollision();
             }
         }
     }
