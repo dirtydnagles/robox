@@ -55,7 +55,7 @@ const fs_source = `
     }
 `;
 
-function initShaderProgram(gl: WebGLRenderingContext, vs_source: string, fs_source: string) {
+function initShaderProgram(gl: WebGLRenderingContext, vs_source: string, fs_source: string): WebGLProgram | null {
     const shader_program = gl.createProgram();
     if (shader_program === null) {
         alert("Failed to create program.");
@@ -84,7 +84,7 @@ function initShaderProgram(gl: WebGLRenderingContext, vs_source: string, fs_sour
     }
 }
 
-function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
+function loadShader(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
     const shader = gl.createShader(type);
     if (shader === null) {
         alert("Failed to create shader.");
@@ -103,7 +103,7 @@ function loadShader(gl: WebGLRenderingContext, type: number, source: string) {
     }
 }
 
-function loadTexture(gl: WebGLRenderingContext, url: string) {
+function loadTexture(gl: WebGLRenderingContext, url: string, onLoad: (image: HTMLImageElement) => void): WebGLTexture | null {
     // Create a 1-pixel large default texture by default.
     const texture = gl.createTexture();
     const level = 0;
@@ -142,6 +142,7 @@ function loadTexture(gl: WebGLRenderingContext, url: string) {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        onLoad(image);
     };
     image.src = url;
     
@@ -203,11 +204,11 @@ function initSquareBuffers(gl: WebGLRenderingContext): BufferInfo | null {
     };
 }
 
-function renderSprite(program_info: ProgramInfo, sprite: Sprite, delta_time: number) {
+function renderSprite(program_info: ProgramInfo, sprite: Sprite, x: number, y: number) {
     let gl = program_info.gl;
     // -- Configure model_view_matrix and apply uniform to shaders.
     const model_view_matrix = mat4.create();
-    mat4.translate(model_view_matrix, model_view_matrix, [sprite.x, sprite.y, -1]);
+    mat4.translate(model_view_matrix, model_view_matrix, [x, y, -1]);
     mat4.rotate(model_view_matrix, model_view_matrix, sprite.rotation, [0, 0, 1]);
     mat4.translate(model_view_matrix, model_view_matrix, [-sprite.width / 2, -sprite.height / 2, 0]);
     mat4.scale(model_view_matrix, model_view_matrix, [sprite.width, sprite.height, 0]);
@@ -294,7 +295,7 @@ function renderSprite(program_info: ProgramInfo, sprite: Sprite, delta_time: num
     }
 }
 
-function drawScene(program_info: ProgramInfo, sprites: Sprite[], delta_time: number) {
+function preRender(program_info: ProgramInfo) {
     let gl = program_info.gl;
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
@@ -319,10 +320,6 @@ function drawScene(program_info: ProgramInfo, sprites: Sprite[], delta_time: num
         false,
         projection_matrix
     );
-    
-    for (let i in sprites) {
-        renderSprite(program_info, sprites[i], delta_time);
-    }
 }
 
 function initWebGL(): ProgramInfo | null {
@@ -386,5 +383,5 @@ function initWebGL(): ProgramInfo | null {
     return program_info;
 }
 
-export { initShaderProgram, initSquareBuffers, loadTexture, drawScene, initWebGL };
+export { initShaderProgram, initSquareBuffers, loadTexture, renderSprite, preRender, initWebGL };
 export type { ProgramInfo, BufferInfo };

@@ -1,9 +1,13 @@
+import { ProgramInfo, preRender } from "./Render";
+
 class Level {
     entities: any[] = [];
+
+    // constructor() {}
     
-    update() {
+    update(delta: number) {
         for (let entity of this.entities) {
-            entity.update();
+            entity.update(delta);
         }
 
         for (let entity of this.entities) {
@@ -16,9 +20,12 @@ class Level {
         }
     }
 
-    render() {
+    render(program_info: ProgramInfo) {
+        preRender(program_info);
         for (let entity of this.entities) {
-            entity.render();
+            entity.render(program_info);
         }
     }
 }
+
+export { Level };
